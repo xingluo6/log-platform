@@ -1,0 +1,35 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: log-processor
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: log-processor-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  # 邮件配置：敏感信息全部从环境变量读取，禁止硬编码提交到Git
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.ssl.enable: true
+      mail.smtp.auth: true
+
+alert:
+  email:
+    # 收件人，也从环境变量读取
+    to: ${MAIL_TO:}
+    # 是否启用邮件告警，默认关闭，避免测试时误发
+    enabled: ${MAIL_ENABLED:false}
+    # 同类告警多少分钟内只发一封（分钟）
+    throttle-minutes: 30

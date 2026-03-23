@@ -1,0 +1,78 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: log-gateway
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+      routes:
+        # ── 路由1：日志采集层 HTTP 接入 ──────────────────────
+        # 访问 /ingest/api/log → 转发到 localhost:8082/api/log
+        - id: log-collector
+          uri: http://localhost:8082
+          predicates:
+            - Path=/ingest/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 500
+                redis-rate-limiter.burstCapacity: 1000
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ── 路由2：Dashboard API（前端调用）──────────────────
+        # 访问 /api/** → 转发到 localhost:8084/api/**
+        - id: log-dashboard
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 200
+                redis-rate-limiter.burstCapacity: 400
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ── 路由3：内部查询接口（调试用）─────────────────────
+        # 访问 /query/** → 转发到 localhost:8083/internal/query/**
+        - id: log-query
+          uri: http://localhost:8083
+          predicates:
+            - Path=/query/**
+          filters:
+            - StripPrefix=1
+            - AddRequestHeader=X-Internal-Path, /internal/query
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,routes,gateway
+  endpoint:
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: WARN

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="NETTY" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>localhost:9100</destination>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"demo-service"}</customFields>
+        </encoder>
+        <reconnectionDelay>3 seconds</reconnectionDelay>
+        <connectionTimeout>3 seconds</connectionTimeout>
+    </appender>
+
+    <!-- Spring框架日志只在控制台显示，不发到监控平台 -->
+    <logger name="org.springframework" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="org.apache" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="org.apache.kafka" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <!-- 业务日志同时发到监控平台 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="NETTY"/>
+    </root>
+
+</configuration>

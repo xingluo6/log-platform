@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>智能运维监控平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#040d1a;color:#a8c4e0;font-family:'Segoe UI',sans-serif;font-size:13px;min-height:100vh}
+        .header{background:linear-gradient(90deg,#071428 0%,#0a1f3d 100%);border-bottom:1px solid #0e2a4a;padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,212,255,.08);position:sticky;top:0;z-index:50}
+        .header-left{display:flex;align-items:center;gap:16px}
+        .logo{display:flex;align-items:center;gap:8px}
+        .logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#00d4ff,#0066ff);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 10px rgba(0,212,255,.4)}
+        .logo-text{font-size:15px;font-weight:600;color:#e0f0ff;letter-spacing:.5px}
+        .logo-sub{font-size:11px;color:#4a7fa0;margin-top:1px}
+        .live-clock{font-size:13px;color:#00d4ff;font-family:monospace;background:#071428;padding:4px 10px;border-radius:4px;border:1px solid #0e2a4a}
+        .header-right{display:flex;align-items:center;gap:8px}
+        .hbtn{padding:5px 12px;border-radius:5px;border:1px solid #0e2a4a;background:#071428;color:#a8c4e0;cursor:pointer;font-size:12px;transition:all .2s;white-space:nowrap}
+        .hbtn:hover{border-color:#00d4ff;color:#00d4ff;box-shadow:0 0 8px rgba(0,212,255,.2)}
+        .hbtn-danger{border-color:rgba(255,77,79,.3);color:#ff4d4f}
+        .hbtn-danger:hover{border-color:#ff4d4f;background:rgba(255,77,79,.08)}
+        .ws-badge{font-size:11px;padding:3px 10px;border-radius:12px;white-space:nowrap}
+        .ws-ok{background:rgba(0,212,161,.15);color:#00d4a1;border:1px solid rgba(0,212,161,.3)}
+        .ws-err{background:rgba(255,77,79,.15);color:#ff4d4f;border:1px solid rgba(255,77,79,.3)}
+        .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 16px 0}
+        .stat{background:linear-gradient(135deg,#071428 0%,#0a1f3d 100%);border:1px solid #0e2a4a;border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 0 20px rgba(0,212,255,.04);transition:box-shadow .3s}
+        .stat:hover{box-shadow:0 0 20px rgba(0,212,255,.12)}
+        .stat-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+        .stat-icon-blue{background:rgba(0,212,255,.12);box-shadow:0 0 10px rgba(0,212,255,.15)}
+        .stat-icon-red{background:rgba(255,77,79,.12);box-shadow:0 0 10px rgba(255,77,79,.15)}
+        .stat-icon-yellow{background:rgba(255,193,7,.12);box-shadow:0 0 10px rgba(255,193,7,.15)}
+        .stat-num{font-size:22px;font-weight:700;color:#e0f0ff;line-height:1}
+        .stat-num.blue{color:#00d4ff}.stat-num.red{color:#ff4d4f}.stat-num.yellow{color:#ffc107}
+        .stat-lbl{font-size:11px;color:#4a7fa0;margin-top:3px}
+        .grid{display:grid;gap:10px;padding:10px 16px;grid-template-columns:2fr 1fr}
+        .card{background:linear-gradient(135deg,#071428 0%,#0a1f3d 100%);border:1px solid #0e2a4a;border-radius:8px;padding:14px;box-shadow:0 0 20px rgba(0,212,255,.04)}
+        .card-title{font-size:12px;color:#4a7fa0;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:.8px}
+        .card-title-text{display:flex;align-items:center;gap:6px}
+        .card-dot{width:6px;height:6px;border-radius:50%;background:#00d4ff;box-shadow:0 0 6px #00d4ff;animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        .full{grid-column:1/-1}
+        .chart-row{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .empty{color:#2a4a6a;font-size:12px;text-align:center;padding:24px 0}
+        .chart{height:220px}.chart-sm{height:180px}
+        .svc-item{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #0e2a4a;font-size:12px}
+        .svc-item:last-child{border-bottom:none}
+        .svc-name{color:#a8c4e0;display:flex;align-items:center;gap:8px}
+        .breathing{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:2px}
+        .breathing-ok{background:#00d4a1;box-shadow:0 0 6px #00d4a1;animation:breathe-ok 2s infinite}
+        .breathing-err{background:#ff4d4f;box-shadow:0 0 8px #ff4d4f;animation:breathe-err 1s infinite}
+        .breathing-off{background:#2a4a6a}
+        @keyframes breathe-ok{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
+        @keyframes breathe-err{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}
+        .svc-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+        .badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+        .badge-ok{background:rgba(0,212,161,.12);color:#00d4a1;border:1px solid rgba(0,212,161,.2)}
+        .badge-err{background:rgba(255,77,79,.12);color:#ff4d4f;border:1px solid rgba(255,77,79,.2)}
+        .badge-off{background:rgba(42,74,106,.2);color:#4a7fa0;border:1px solid rgba(42,74,106,.3)}
+        .svc-last-seen{font-size:10px;color:#2a4a6a}
+        .group{border:1px solid #0e2a4a;border-radius:6px;margin-bottom:6px;overflow:hidden;transition:border-color .2s}
+        .group:hover{border-color:#1a3a5a}
+        .group-hd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;cursor:pointer;background:#071428;transition:background .2s}
+        .group-hd:hover{background:#0a1f3d}
+        .group-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+        .alert-stripe{width:3px;height:20px;background:#ff4d4f;border-radius:2px;flex-shrink:0;box-shadow:0 0 6px rgba(255,77,79,.6)}
+        .log-stripe{width:3px;height:20px;background:#00d4ff;border-radius:2px;flex-shrink:0;box-shadow:0 0 6px rgba(0,212,255,.4)}
+        .tag-rule{color:#ff4d4f;font-weight:700;font-size:11px;white-space:nowrap}
+        .tag-svc{color:#00d4ff;font-size:12px;font-weight:600;white-space:nowrap}
+        .tag-log-svc{color:#00d4ff;font-size:12px;font-weight:600}
+        .cnt{background:rgba(255,77,79,.15);color:#ff4d4f;font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid rgba(255,77,79,.2)}
+        .cnt-log{background:rgba(0,212,255,.1);color:#00d4ff;font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid rgba(0,212,255,.2)}
+        .group-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+        .time-lbl{color:#2a4a6a;font-size:11px;font-family:monospace}
+        .arrow{color:#2a4a6a;font-size:10px;transition:transform .2s}
+        .arrow.open{transform:rotate(180deg)}
+        .btn-dismiss{font-size:11px;padding:2px 9px;border-radius:4px;border:1px solid rgba(0,212,161,.3);background:transparent;color:#00d4a1;cursor:pointer;transition:all .2s}
+        .btn-dismiss:hover{background:rgba(0,212,161,.12)}
+        .preview{padding:5px 12px 9px 23px;color:#2a4a6a;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .detail{border-top:1px solid #0e2a4a}
+        .detail-item{padding:7px 12px 7px 23px;border-bottom:1px solid #071428;font-size:11px;display:flex;gap:8px}
+        .detail-item:last-child{border-bottom:none}
+        .dt{color:#2a4a6a;font-family:monospace;white-space:nowrap;flex-shrink:0}
+        .dm{color:#a8c4e0}
+        .log-toolbar{padding:6px 12px;border-top:1px solid #0e2a4a;display:flex;align-items:center;gap:6px;background:#040d1a}
+        .lvl-filter{padding:2px 8px;border-radius:10px;font-size:11px;cursor:pointer;border:1px solid #0e2a4a;background:transparent;color:#4a7fa0;transition:all .2s}
+        .lvl-filter.active{border-color:#00d4ff;color:#00d4ff;background:rgba(0,212,255,.08)}
+        .log-stream{max-height:200px;overflow-y:auto;font-family:monospace;scrollbar-width:thin;scrollbar-color:#0e2a4a #040d1a}
+        .log-stream::-webkit-scrollbar{width:4px}
+        .log-stream::-webkit-scrollbar-thumb{background:#0e2a4a;border-radius:2px}
+        .log-item{padding:4px 12px;border-bottom:1px solid #040d1a;font-size:11px;display:flex;gap:8px;align-items:flex-start}
+        .log-item:hover{background:#071428}
+        .log-time{color:#2a4a6a;white-space:nowrap;flex-shrink:0;font-size:10px}
+        .log-lvl{font-weight:700;white-space:nowrap;flex-shrink:0;width:40px;font-size:10px}
+        .lvl-ERROR{color:#ff4d4f}.lvl-WARN{color:#ffc107}.lvl-INFO{color:#00d4a1}.lvl-DEBUG{color:#4a7fa0}
+        .log-msg{color:#8ab0cc;word-break:break-all;line-height:1.4}
+        .log-loading{padding:10px;color:#2a4a6a;font-size:11px;text-align:center}
+        .stream-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:#4a7fa0}
+        .stream-switch{position:relative;width:32px;height:17px;cursor:pointer}
+        .stream-switch input{opacity:0;width:0;height:0}
+        .sslider{position:absolute;inset:0;background:#0e2a4a;border-radius:17px;transition:.3s}
+        .sslider:before{content:"";position:absolute;width:13px;height:13px;left:2px;bottom:2px;background:#4a7fa0;border-radius:50%;transition:.3s}
+        input:checked+.sslider{background:rgba(0,212,255,.3)}
+        input:checked+.sslider:before{transform:translateX(15px);background:#00d4ff}
+        .overlay{position:fixed;inset:0;background:rgba(4,13,26,.85);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+        .modal{background:#071428;border:1px solid #0e2a4a;border-radius:10px;padding:24px;min-width:420px;max-width:580px;width:90%;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 0 40px rgba(0,212,255,.1)}
+        .modal h2{font-size:15px;color:#e0f0ff;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+        .modal-close{position:absolute;top:14px;right:16px;background:none;border:none;color:#2a4a6a;font-size:18px;cursor:pointer;transition:color .2s}
+        .modal-close:hover{color:#e0f0ff}
+        .form-row{margin-bottom:12px}
+        .form-row label{display:block;font-size:11px;color:#4a7fa0;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+        .form-row input,.form-row select{width:100%;background:#040d1a;border:1px solid #0e2a4a;border-radius:5px;padding:8px 10px;color:#a8c4e0;font-size:13px;transition:border-color .2s}
+        .form-row select option{background:#040d1a}
+        .form-row input:focus,.form-row select:focus{outline:none;border-color:#00d4ff;box-shadow:0 0 8px rgba(0,212,255,.15)}
+        .form-hint{font-size:10px;color:#2a4a6a;margin-top:4px}
+        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #0e2a4a;margin-top:4px}
+        .toggle-label{font-size:13px;color:#a8c4e0}
+        .switch{position:relative;width:40px;height:22px;cursor:pointer}
+        .switch input{opacity:0;width:0;height:0}
+        .slider{position:absolute;inset:0;background:#0e2a4a;border-radius:22px;transition:.3s}
+        .slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#2a4a6a;border-radius:50%;transition:.3s}
+        input:checked+.slider{background:rgba(0,212,255,.3)}
+        input:checked+.slider:before{transform:translateX(18px);background:#00d4ff}
+        .modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+        .btn-primary{padding:7px 16px;background:linear-gradient(135deg,#0066ff,#00d4ff);border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;transition:opacity .2s}
+        .btn-primary:hover{opacity:.85}
+        .btn-danger{padding:7px 16px;background:linear-gradient(135deg,#8b0000,#ff4d4f);border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;transition:opacity .2s}
+        .btn-danger:hover{opacity:.85}
+        .test-result{margin-top:10px;padding:8px 12px;border-radius:5px;font-size:12px}
+        .test-ok{background:rgba(0,212,161,.1);color:#00d4a1;border:1px solid rgba(0,212,161,.2)}
+        .test-err{background:rgba(255,77,79,.1);color:#ff4d4f;border:1px solid rgba(255,77,79,.2)}
+        .divider{border:none;border-top:1px solid #0e2a4a;margin:12px 0}
+        .cleanup-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #0e2a4a;border-radius:6px;margin-bottom:8px;cursor:pointer;transition:all .2s}
+        .cleanup-option:hover{border-color:#ff4d4f;background:rgba(255,77,79,.05)}
+        .cleanup-option.selected{border-color:#ff4d4f;background:rgba(255,77,79,.08)}
+        .cleanup-icon{font-size:16px;flex-shrink:0}
+        .cleanup-label{font-size:13px;color:#a8c4e0}
+        .cleanup-desc{font-size:11px;color:#4a7fa0;margin-top:2px}
+        .cleanup-warn{background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.2);border-radius:5px;padding:10px 12px;font-size:12px;color:#ffc107;margin-bottom:14px}
+        .tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid #0e2a4a}
+        .tab{padding:8px 16px;cursor:pointer;font-size:12px;color:#4a7fa0;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+        .tab.active{color:#00d4ff;border-bottom-color:#00d4ff}
+        .step{margin-bottom:16px}
+        .step-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:rgba(0,212,255,.15);color:#00d4ff;border-radius:50%;font-size:11px;font-weight:700;margin-right:6px}
+        .step-title{font-size:12px;color:#e0f0ff;margin-bottom:8px;display:flex;align-items:center}
+        .step-desc{font-size:11px;color:#4a7fa0;margin-bottom:6px;line-height:1.5}
+        .code-wrap{position:relative;margin-bottom:4px}
+        .code-pre{background:#040d1a;border:1px solid #0e2a4a;border-radius:5px;margin:0;padding:10px 12px;padding-right:64px;font-family:'Courier New',Courier,monospace;font-size:11px;color:#a8c4e0;white-space:pre;overflow-x:auto;overflow-y:auto;max-height:220px;line-height:1.6;scrollbar-width:thin;scrollbar-color:#0e2a4a #040d1a}
+        .code-pre::-webkit-scrollbar{width:4px;height:4px}
+        .code-pre::-webkit-scrollbar-thumb{background:#0e2a4a;border-radius:2px}
+        .copy-btn{position:absolute;top:6px;right:8px;padding:2px 8px;font-size:10px;background:#0e2a4a;border:none;border-radius:3px;color:#4a7fa0;cursor:pointer;transition:all .2s}
+        .copy-btn:hover{color:#00d4ff}
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <div class="logo-icon">🔍</div>
+                <div>
+                    <div class="logo-text">智能运维监控平台</div>
+                    <div class="logo-sub">AIOps · Real-time · Alert</div>
+                </div>
+            </div>
+            <div class="live-clock">{{ clock }}</div>
+        </div>
+        <div class="header-right">
+            <div class="stream-toggle">
+                <span>全量日志</span>
+                <label class="stream-switch">
+                    <input type="checkbox" v-model="allLevelStream" @change="toggleStreamLevel">
+                    <span class="sslider"></span>
+                </label>
+            </div>
+            <button class="hbtn" @click="showTutorial=true">📖 接入教程</button>
+            <button class="hbtn" @click="openEmailModal">⚙️ 邮件设置</button>
+            <button class="hbtn hbtn-danger" @click="openCleanup">🗑 清除数据</button>
+            <span class="ws-badge" :class="wsConnected?'ws-ok':'ws-err'">
+        {{ wsConnected ? '● LIVE' : '○ 断开' }}
+      </span>
+        </div>
+    </div>
+
+    <div class="stat-row">
+        <div class="stat">
+            <div class="stat-icon stat-icon-blue">📊</div>
+            <div><div class="stat-num blue">{{ stats.totalLogs||0 }}</div><div class="stat-lbl">总日志量</div></div>
+        </div>
+        <div class="stat">
+            <div class="stat-icon stat-icon-red">🔴</div>
+            <div><div class="stat-num red">{{ stats.todayErrors||0 }}</div><div class="stat-lbl">今日 ERROR</div></div>
+        </div>
+        <div class="stat">
+            <div class="stat-icon stat-icon-yellow">⚡</div>
+            <div><div class="stat-num yellow">{{ stats.totalAlerts||0 }}</div><div class="stat-lbl">累计告警</div></div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-title"><div class="card-title-text"><span class="card-dot"></span>错误率趋势（近30分钟）</div></div>
+            <div id="echart-line" class="chart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <div class="card-title-text"><span class="card-dot" style="background:#00d4a1;box-shadow:0 0 6px #00d4a1"></span>服务健康状态</div>
+            </div>
+            <div v-if="!allServiceStatus.length" class="empty">暂无服务记录</div>
+            <div v-for="s in allServiceStatus" :key="s.service" class="svc-item">
+                <div class="svc-name">
+                    <span class="breathing" :class="s.online?(s.status==='OK'?'breathing-ok':'breathing-err'):'breathing-off'"></span>
+                    {{ s.service }}
+                </div>
+                <div class="svc-right">
+          <span class="badge" :class="!s.online?'badge-off':(s.status==='OK'?'badge-ok':'badge-err')">
+            {{ !s.online?'OFFLINE':s.status }}
+          </span>
+                    <span class="svc-last-seen" v-if="!s.online">最后活跃: {{ s.last_seen||'未知' }}</span>
+                    <span class="svc-last-seen" v-else>错误 {{ s.recent_errors }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <div class="card">
+                <div class="card-title"><div class="card-title-text"><span class="card-dot" style="background:#ffc107;box-shadow:0 0 6px #ffc107"></span>日志级别分布（近30分钟）</div></div>
+                <div id="echart-pie" class="chart-sm"></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><div class="card-title-text"><span class="card-dot" style="background:#bc8cff;box-shadow:0 0 6px #bc8cff"></span>各服务日志量（近30分钟）</div></div>
+                <div id="echart-bar" class="chart-sm"></div>
+            </div>
+        </div>
+
+        <div class="card full">
+            <div class="card-title">
+                <div class="card-title-text"><span class="card-dot" style="background:#ff4d4f;box-shadow:0 0 6px #ff4d4f"></span>告警列表</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:10px;color:#2a4a6a">已处理24小时后自动恢复</span>
+                    <button class="hbtn" style="font-size:10px;padding:2px 8px" @click="clearAllDismissed">全部恢复</button>
+                </div>
+            </div>
+            <div v-if="!visibleAlertGroups.length" class="empty">✅ 当前无活跃告警</div>
+            <div v-for="g in visibleAlertGroups" :key="g.key" class="group">
+                <div class="group-hd" @click="toggleGroup('alert',g.key)">
+                    <div class="group-left">
+                        <span class="alert-stripe"></span>
+                        <span class="tag-rule">{{ g.ruleName }}</span>
+                        <span style="color:#1a3a5a">|</span>
+                        <span class="tag-svc">{{ g.service }}</span>
+                        <span class="cnt">x{{ g.items.length }}</span>
+                    </div>
+                    <div class="group-right">
+                        <span class="time-lbl">{{ g.latestTime }}</span>
+                        <button class="btn-dismiss" @click.stop="dismiss(g.key)">✓ 已处理</button>
+                        <span class="arrow" :class="{open:expanded.alert.has(g.key)}">▼</span>
+                    </div>
+                </div>
+                <div class="preview" v-if="!expanded.alert.has(g.key)">{{ g.items[0]?.message }}</div>
+                <div class="detail" v-else>
+                    <div v-for="item in g.items" :key="item.triggered_at" class="detail-item">
+                        <span class="dt">{{ fmtTime(item.triggered_at) }}</span>
+                        <span class="dm">{{ item.message }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card full">
+            <div class="card-title">
+                <div class="card-title-text"><span class="card-dot"></span>实时日志流</div>
+                <span style="font-size:10px;color:#2a4a6a">展开查看详情，可按级别过滤</span>
+            </div>
+            <div v-if="!logServices.length" class="empty">等待日志接入...</div>
+            <div v-for="svc in logServices" :key="svc" class="group">
+                <div class="group-hd" @click="toggleLogGroup(svc)">
+                    <div class="group-left">
+                        <span class="log-stripe"></span>
+                        <span class="tag-log-svc">{{ svc }}</span>
+                        <span class="cnt-log">x{{ (logBuffer[svc]||[]).length }}</span>
+                    </div>
+                    <div class="group-right">
+                        <span class="time-lbl">{{ (logBuffer[svc]||[])[0]?.time||'' }}</span>
+                        <span class="arrow" :class="{open:expanded.log.has(svc)}">▼</span>
+                    </div>
+                </div>
+                <div v-if="expanded.log.has(svc)">
+                    <div class="log-toolbar">
+                        <span style="color:#2a4a6a;margin-right:4px">过滤:</span>
+                        <button v-for="lv in ['ALL','ERROR','WARN','INFO']" :key="lv"
+                                class="lvl-filter" :class="{active:(logFilter[svc]||'ALL')===lv}"
+                                @click="logFilter[svc]=lv">{{ lv }}</button>
+                    </div>
+                    <div class="log-stream">
+                        <div v-if="logLoading[svc]" class="log-loading">加载历史日志中...</div>
+                        <div v-for="(item,i) in filteredLogs(svc)" :key="i" class="log-item">
+                            <span class="log-time">{{ item.time }}</span>
+                            <span class="log-lvl" :class="'lvl-'+item.level">{{ item.level }}</span>
+                            <span class="log-msg">{{ item.message }}</span>
+                        </div>
+                        <div v-if="!logLoading[svc]&&!filteredLogs(svc).length" class="log-loading">暂无 {{ logFilter[svc]||'ALL' }} 级别日志</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 邮件设置弹窗 -->
+    <div class="overlay" v-if="showEmail" @click.self="showEmail=false">
+        <div class="modal">
+            <button class="modal-close" @click="showEmail=false">✕</button>
+            <h2>⚙️ 邮件告警设置</h2>
+            <div class="toggle-row" style="border-top:none;padding-top:0;margin-bottom:14px">
+                <span class="toggle-label">邮件告警开关</span>
+                <label class="switch"><input type="checkbox" v-model="emailForm.enabled" @change="toggleEmail"><span class="slider"></span></label>
+            </div>
+            <hr class="divider">
+            <div class="form-row"><label>收件邮箱</label><input v-model="emailForm.to" placeholder="接收告警的邮箱地址"></div>
+            <div class="form-row"><label>发件邮箱（QQ邮箱）</label><input v-model="emailForm.username" placeholder="xxxxx@qq.com"></div>
+            <div class="form-row">
+                <label>QQ邮箱授权码</label>
+                <input v-model="emailForm.password" type="password" :placeholder="emailForm.passwordConfigured?'已配置，留空则不修改':'16位授权码'">
+                <div class="form-hint">QQ邮箱 → 设置 → 账户 → POP3/IMAP/SMTP → 生成授权码</div>
+            </div>
+            <div class="form-row">
+                <label>告警聚合冷却时间（分钟）</label>
+                <input v-model.number="emailForm.throttleMinutes" type="number" min="1" max="1440">
+                <div class="form-hint">首次告警立即发送，冷却期内同服务告警累计，结束后发汇总</div>
+            </div>
+            <div v-if="testResult" class="test-result" :class="testResult.startsWith('✅')?'test-ok':'test-err'">{{ testResult }}</div>
+            <div class="modal-actions">
+                <button class="hbtn" @click="testEmail" :disabled="emailTesting">{{ emailTesting?'发送中...':'📧 测试发送' }}</button>
+                <button class="btn-primary" @click="saveEmail">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 清除数据弹窗 -->
+    <div class="overlay" v-if="showCleanup" @click.self="showCleanup=false">
+        <div class="modal" style="max-width:480px">
+            <button class="modal-close" @click="showCleanup=false">✕</button>
+            <h2>🗑 清除日志数据</h2>
+            <div class="cleanup-warn">⚠️ 清除操作不可恢复，同时重置统计数据（总日志量、今日错误、累计告警）</div>
+            <div v-for="opt in cleanupOptions" :key="opt.value"
+                 class="cleanup-option" :class="{selected:cleanupRange===opt.value}"
+                 @click="cleanupRange=opt.value">
+                <span class="cleanup-icon">{{ opt.icon }}</span>
+                <div>
+                    <div class="cleanup-label">{{ opt.label }}</div>
+                    <div class="cleanup-desc">{{ opt.desc }}</div>
+                </div>
+            </div>
+            <div v-if="cleanupResult" class="test-result" :class="cleanupResult.startsWith('✅')?'test-ok':'test-err'">{{ cleanupResult }}</div>
+            <div class="modal-actions">
+                <button class="hbtn" @click="showCleanup=false">取消</button>
+                <button class="btn-danger" @click="doCleanup" :disabled="cleanupLoading">{{ cleanupLoading?'清除中...':'确认清除' }}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 教程弹窗 -->
+    <div class="overlay" v-if="showTutorial" @click.self="showTutorial=false">
+        <div class="modal" style="max-width:640px">
+            <button class="modal-close" @click="showTutorial=false">✕</button>
+            <h2>📖 服务接入教程</h2>
+            <div class="tabs">
+                <div class="tab" :class="{active:tutTab==='java'}" @click="tutTab='java'">☕ Java 项目</div>
+                <div class="tab" :class="{active:tutTab==='python'}" @click="tutTab='python'">🐍 Python 项目</div>
+            </div>
+            <div v-if="tutTab==='java'">
+                <div class="step">
+                    <div class="step-title"><span class="step-num">1</span>pom.xml 添加依赖</div>
+                    <div class="code-wrap">
+                        <button class="copy-btn" data-key="j1" @click="copySnippet('j1')">复制</button>
+                        <pre class="code-pre">{{ codeSnippets.j1 }}</pre>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-title"><span class="step-num">2</span>添加 logback-spring.xml</div>
+                    <div class="step-desc">在 src/main/resources/ 创建或修改 logback-spring.xml：</div>
+                    <div class="code-wrap">
+                        <button class="copy-btn" data-key="j2" @click="copySnippet('j2')">复制</button>
+                        <pre class="code-pre">{{ codeSnippets.j2 }}</pre>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-title"><span class="step-num">3</span>重启目标服务</div>
+                    <div class="step-desc">重启后日志自动发送到平台，无需修改业务代码。确保 log-collector 正在运行（端口 9100）。</div>
+                </div>
+            </div>
+            <div v-if="tutTab==='python'">
+                <div class="step">
+                    <div class="step-title"><span class="step-num">1</span>新建 platform_handler.py</div>
+                    <div class="code-wrap">
+                        <button class="copy-btn" data-key="p1" @click="copySnippet('p1')">复制</button>
+                        <pre class="code-pre">{{ codeSnippets.p1 }}</pre>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-title"><span class="step-num">2</span>在项目入口添加 Handler</div>
+                    <div class="code-wrap">
+                        <button class="copy-btn" data-key="p2" @click="copySnippet('p2')">复制</button>
+                        <pre class="code-pre">{{ codeSnippets.p2 }}</pre>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-title"><span class="step-num">3</span>确认平台正在运行</div>
+                    <div class="step-desc">确保 log-collector 在运行（端口 8082），重启 Python 项目即可在平台看到日志。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<script>
+    const {createApp,ref,computed,reactive,onMounted,onUnmounted} = Vue;
+    const API  = 'http://localhost:8084/api';
+    const PAPI = 'http://localhost:8083/internal/query';
+    const WS   = 'ws://localhost:8084/ws/alerts';
+    const COLORS = ['#ff4d4f','#00d4ff','#00d4a1','#ffc107','#bc8cff','#ff7a45'];
+    const MAX_LOG = 200;
+    const MAX_ALERTS = 50;
+
+    // sessionStorage 持久化工具（刷新保留，关闭标签清除）
+    const SS = {
+        save(key, val) { try { sessionStorage.setItem(key, JSON.stringify(val)); } catch(e){} },
+        load(key, def) { try { const v=sessionStorage.getItem(key); return v?JSON.parse(v):def; } catch(e){ return def; } }
+    };
+
+    // 代码片段存为 JS 常量，绕开 Vue 模板编译器的空白折叠问题
+    const CODE_SNIPPETS = {
+        j1: `<dependency>
+    <groupId>net.logstash.logback</groupId>
+    <artifactId>logstash-logback-encoder</artifactId>
+    <version>7.4</version>
+</dependency>`,
+        j2: `<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- 框架日志只输出到控制台，不发到监控平台 -->
+  <logger name="org.springframework" level="INFO" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+  </logger>
+  <logger name="org.apache" level="WARN" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+  </logger>
+
+  <appender name="MONITOR"
+    class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+    <destination>localhost:9100</destination>
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <customFields>{"service":"你的服务名"}</customFields>
+    </encoder>
+    <reconnectionDelay>3 seconds</reconnectionDelay>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="MONITOR"/>
+  </root>
+</configuration>`,
+        p1: `import sys, logging, threading, requests
+
+def _send(svc, url, level, msg, name):
+    def _do():
+        try: requests.post(url, json={"service":svc,"level":level,"message":msg,"logger_name":name}, timeout=1)
+        except: pass
+    threading.Thread(target=_do, daemon=True).start()
+
+class PlatformHandler(logging.Handler):
+    def __init__(self, svc, url="http://localhost:8082/api/log"):
+        super().__init__(); self.svc=svc; self.url=url
+    def emit(self, r):
+        try:
+            lv = r.levelname.upper().replace("WARNING","WARN").replace("CRITICAL","ERROR")
+            _send(self.svc, self.url, lv, self.format(r), r.name)
+        except: self.handleError(r)
+
+class _Intr:
+    def __init__(self, o, svc, url, lv):
+        self._o=o; self.svc=svc; self.url=url; self.lv=lv; self._b=[]
+    def write(self, t):
+        self._o.write(t); self._b.append(t)
+        c = ''.join(self._b)
+        if '\\n' in c:
+            ls = c.split('\\n')
+            for l in ls[:-1]:
+                if l.strip(): _send(self.svc, self.url, self.lv, l.strip(), 'stdout')
+            self._b = [ls[-1]] if ls[-1] else []
+    def flush(self): self._o.flush()
+    def __getattr__(self, n): return getattr(self._o, n)
+
+def install(svc, url="http://localhost:8082/api/log"):
+    root = logging.getLogger()
+    if not any(isinstance(h, PlatformHandler) for h in root.handlers):
+        h = PlatformHandler(svc, url)
+        h.setFormatter(logging.Formatter('%(message)s'))
+        root.addHandler(h)
+    if not isinstance(sys.stdout, _Intr):
+        sys.stdout = _Intr(sys.stdout, svc, url, 'INFO')
+    if not isinstance(sys.stderr, _Intr):
+        sys.stderr = _Intr(sys.stderr, svc, url, 'ERROR')`,
+        p2: `# main.py / app.py 顶部加这两行，其他代码完全不动
+from platform_handler import install
+install("shuyan-ai")  # 替换为你的服务名
+
+# 拦截效果
+# print("[Kokoro] TTS 加载完成")   -> INFO 存储
+# logging.error("ChromaDB失败")    -> ERROR 触发告警
+# Uvicorn GET /api/xxx 200 OK      -> INFO 存储不告警
+# Uvicorn GET /api/xxx 500 Error   -> ERROR 触发告警
+# Uvicorn GET /api/xxx 404         -> WARN
+# stderr Traceback                 -> ERROR 触发告警`
+    };
+
+    createApp({
+        setup(){
+            const wsConnected       = ref(false);
+            const clock             = ref('');
+            const stats             = ref({});
+            const rawServiceStatus  = ref([]);
+            const allServiceHistory = ref([]);
+            const rawAlerts         = ref(SS.load('alerts', []));
+            const dismissed         = ref({});  // { alertKey: dismissedAt时间戳 }
+            const showEmail         = ref(false);
+            const showTutorial      = ref(false);
+            const showCleanup       = ref(false);
+            const tutTab            = ref('java');
+            const emailTesting      = ref(false);
+            const testResult        = ref('');
+            const cleanupRange      = ref('1h');
+            const cleanupLoading    = ref(false);
+            const cleanupResult     = ref('');
+            const allLevelStream    = ref(false);
+            const codeSnippets      = CODE_SNIPPETS;
+            const emailForm         = reactive({enabled:false,to:'',username:'',password:'',passwordConfigured:false,throttleMinutes:30});
+            const expanded          = reactive({alert:new Set(),log:new Set()});
+            const logBuffer         = reactive({});
+            // 从 sessionStorage 恢复日志缓冲区（保持响应性）
+            Object.assign(logBuffer, SS.load('logBuffer', {}));
+            const logLoading        = reactive({});
+            const logFilter         = reactive({});
+            let chartLine=null,chartPie=null,chartBar=null,ws=null;
+            const timers=[];
+
+            const cleanupOptions = [
+                {value:'1h',  icon:'⏱', label:'最近一小时', desc:'删除1小时内的日志和告警'},
+                {value:'1d',  icon:'📅', label:'最近一天',   desc:'删除24小时内的日志和告警'},
+                {value:'1w',  icon:'📆', label:'最近一周',   desc:'删除7天内的日志和告警'},
+                {value:'4w',  icon:'🗓', label:'最近四周',   desc:'删除28天内的日志和告警'},
+                {value:'all', icon:'💣', label:'全部清空',   desc:'清空所有日志、告警和统计数据'},
+            ];
+
+            const updateClock = () => clock.value = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+
+            // 合并在线+离线服务
+            const allServiceStatus = computed(()=>{
+                const onlineMap = new Map(rawServiceStatus.value.map(s=>[s.service,s]));
+                const result = rawServiceStatus.value.map(s=>({...s,online:true}));
+                for(const h of allServiceHistory.value){
+                    if(!onlineMap.has(h.service)){
+                        result.push({service:h.service,online:false,last_seen:h.last_seen,recent_errors:0,status:'OFFLINE'});
+                    }
+                }
+                return result;
+            });
+
+            const alertGroups = computed(()=>{
+                const map = new Map();
+                for(const a of rawAlerts.value){
+                    const key=`${a.rule_name}||${a.service}`;
+                    if(!map.has(key)) map.set(key,{key,ruleName:a.rule_name,service:a.service,items:[]});
+                    map.get(key).items.push(a);
+                }
+                return [...map.values()].map(g=>({...g,latestTime:fmtTime(g.items[0]?.triggered_at)}));
+            });
+
+            const visibleAlertGroups = computed(()=>alertGroups.value.filter(g=>{
+                const dismissedAt = dismissed.value[g.key];
+                if(!dismissedAt) return true;  // 未消除，显示
+                // 有消除记录：检查是否有新告警出现在消除之后
+                const latestItem = g.items[0];
+                if(!latestItem) return false;
+                // triggered_at 是 HH:mm:ss 格式，需要和 dismissedAt (LocalDateTime) 比较
+                // 简单方案：把两者都取 HH:mm:ss 部分比较
+                const dismissedTime = dismissedAt.includes('T') ? dismissedAt.split('T')[1].substring(0,8) : dismissedAt.substring(0,8);
+                const alertTime = latestItem.triggered_at || '';
+                return alertTime > dismissedTime;  // 新告警时间更晚 → 显示
+            }));
+            const logServices = computed(()=>Object.keys(logBuffer));
+            const filteredLogs = svc => { const logs=logBuffer[svc]||[]; const f=logFilter[svc]||'ALL'; return f==='ALL'?logs:logs.filter(l=>l.level===f); };
+
+            const fmtTime = ts => {
+                if(!ts) return '';
+                if(/^\d{2}:\d{2}(:\d{2})?$/.test(String(ts))) return ts;
+                try { return new Date(ts).toLocaleTimeString('zh-CN'); } catch { return String(ts); }
+            };
+
+            // 从 CODE_SNIPPETS 直接复制，换行符完全保留
+            const copySnippet = key => {
+                const text = CODE_SNIPPETS[key];
+                if(!text) return;
+                // 找当前激活tab下对应的复制按钮
+                const btns = document.querySelectorAll('.copy-btn');
+                let targetBtn = null;
+                btns.forEach(b=>{ if(b.getAttribute('data-key')===key) targetBtn=b; });
+                const doFeedback = btn => { if(btn){ btn.textContent='✓ 已复制'; setTimeout(()=>btn.textContent='复制',2000); }};
+                navigator.clipboard.writeText(text)
+                    .then(()=>doFeedback(targetBtn))
+                    .catch(()=>{ const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);doFeedback(targetBtn); });
+            };
+
+            const toggleGroup=(type,key)=>{const s=new Set(expanded[type]);s.has(key)?s.delete(key):s.add(key);expanded[type]=s;};
+            const toggleLogGroup=async svc=>{const s=new Set(expanded.log);if(s.has(svc)){s.delete(svc);}else{s.add(svc);await loadHistory(svc);}expanded.log=s;};
+            const loadHistory=async svc=>{logLoading[svc]=true;try{const res=await fetch(`${PAPI}/logs/recent?service=${svc}&limit=100`);const data=await res.json();const buf=logBuffer[svc]||[];const exist=new Set(buf.map(i=>i.time+i.message));const fresh=data.map(d=>({time:d.time,level:d.level,message:d.message})).filter(d=>!exist.has(d.time+d.message));logBuffer[svc]=[...buf,...fresh].slice(0,MAX_LOG);}catch(e){}logLoading[svc]=false;};
+
+            const clearAllDismissed=async()=>{
+                // 清除所有已消除的告警，让告警列表重新显示
+                const keys=[...dismissed.value];
+                for(const key of keys){
+                    try{
+                        await fetch(`${PAPI}/alert/dismiss-restore`,{method:'POST',
+                            headers:{'Content-Type':'application/json'},
+                            body:JSON.stringify({key})});
+                    }catch(e){}
+                }
+                dismissed.value={};
+                await fetchAlerts();
+            };
+            const dismiss=async key=>{try{
+                const res=await fetch(`${PAPI}/alert/dismiss`,{method:'POST',
+                    headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
+                const d=await res.json();
+                if(d.dismissedAt){
+                    dismissed.value={...dismissed.value,[key]:d.dismissedAt};
+                }
+                fetchServiceStatus();
+            }catch(e){}};
+            const toggleStreamLevel=async()=>{try{await fetch(`${PAPI}/config/logstream-level`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:allLevelStream.value?'ALL':'WARN_ERROR'})});}catch(e){}};
+
+            const openCleanup=()=>{cleanupResult.value='';showCleanup.value=true;};
+            const doCleanup=async()=>{
+                cleanupLoading.value=true;cleanupResult.value='';
+                try{
+                    const res=await fetch(`${PAPI}/cleanup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({range:cleanupRange.value})});
+                    const d=await res.json();
+                    cleanupResult.value=d.success?`✅ ${d.message}`:`❌ ${d.message}`;
+                    if(d.success){
+                        // 先清空图表数据，防止旧数据残留
+                        if(chartLine) chartLine.setOption({xAxis:{data:[]},series:[]},{replaceMerge:['series']});
+                        if(chartPie)  chartPie.setOption({series:[{data:[]}]});
+                        if(chartBar)  chartBar.setOption({xAxis:{data:[]},series:[{data:[]},{data:[]},{data:[]}]},{replaceMerge:['series']});
+                        // 清空前端缓存
+                        Object.keys(logBuffer).forEach(k=>delete logBuffer[k]);
+                        rawAlerts.value=[];
+                        SS.save('alerts',[]);
+                        SS.save('logBuffer',{});
+                        // 重新拉取数据
+                        await Promise.all([fetchAlerts(),fetchServiceStatus(),fetchAllServiceHistory(),fetchStats(),fetchErrorRate(),fetchLevelStats(),fetchLogVolume()]);
+                    }
+                }catch(e){cleanupResult.value='❌ 请求失败';}
+                cleanupLoading.value=false;
+            };
+
+            const openEmailModal=async()=>{try{const res=await fetch(`${PAPI}/config/email-status`);const d=await res.json();emailForm.enabled=d.enabled;emailForm.to=d.to||'';emailForm.username=d.username||'';emailForm.password='';emailForm.passwordConfigured=d.passwordConfigured||false;emailForm.throttleMinutes=d.throttleMinutes||30;testResult.value='';}catch(e){}showEmail.value=true;};
+            const toggleEmail=async()=>{try{await fetch(`${PAPI}/config/email-toggle`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:emailForm.enabled})});}catch(e){}};
+            const saveEmail=async()=>{try{const body={to:emailForm.to,username:emailForm.username,throttleMinutes:emailForm.throttleMinutes};if(emailForm.password)body.password=emailForm.password;const res=await fetch(`${PAPI}/config/email-save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await res.json();testResult.value=d.success?'✅ 配置已保存':'❌ 保存失败';}catch(e){testResult.value='❌ 请求失败';}};
+            const testEmail=async()=>{emailTesting.value=true;testResult.value='';try{const res=await fetch(`${PAPI}/config/email-test`,{method:'POST'});const d=await res.json();testResult.value=d.message;}catch(e){testResult.value='❌ 请求失败';}emailTesting.value=false;};
+
+            const fetchErrorRate=async()=>{try{const res=await fetch(`${API}/error-rate?minutes=30`);const data=await res.json();if(!chartLine||!data.length)return;const svcMap=new Map(),timeSet=new Set();for(const d of data){timeSet.add(d.minute||'');if(!svcMap.has(d.service))svcMap.set(d.service,new Map());svcMap.get(d.service).set(d.minute||'',d.error_rate||0);}const times=[...timeSet].sort();const series=[...svcMap.entries()].map(([svc,vals],i)=>({name:svc,type:'line',smooth:true,data:times.map(t=>vals.get(t)??0),lineStyle:{color:COLORS[i%COLORS.length],width:2},itemStyle:{color:COLORS[i%COLORS.length]},areaStyle:{color:COLORS[i%COLORS.length]+'20'},symbol:'circle',symbolSize:4}));chartLine.setOption({xAxis:{data:times},series},{replaceMerge:['series']});}catch(e){}};
+            const fetchLevelStats=async()=>{try{const res=await fetch(`${API}/level-stats?minutes=30`);const data=await res.json();if(!chartPie||!data.length)return;const cm={ERROR:'#ff4d4f',WARN:'#ffc107',INFO:'#00d4a1',DEBUG:'#4a7fa0'};chartPie.setOption({series:[{data:data.map(d=>({name:d.level,value:d.cnt,itemStyle:{color:cm[d.level]||'#00d4ff'}}))}]});}catch(e){}};
+            const fetchLogVolume=async()=>{try{const res=await fetch(`${API}/log-volume?minutes=30`);const data=await res.json();if(!chartBar||!data.length)return;chartBar.setOption({xAxis:{data:data.map(d=>d.service)},series:[{name:'ERROR',data:data.map(d=>d.errors)},{name:'WARN',data:data.map(d=>d.warns)},{name:'INFO',data:data.map(d=>d.infos)}]});}catch(e){}};
+            const fetchAlerts=async()=>{try{const res=await fetch(`${API}/alerts?limit=50`);rawAlerts.value=await res.json();SS.save('alerts',rawAlerts.value);}catch(e){}};
+            const fetchServiceStatus=async()=>{try{const res=await fetch(`${API}/service-status`);rawServiceStatus.value=await res.json();}catch(e){}};
+            const fetchAllServiceHistory=async()=>{try{const res=await fetch(`${PAPI}/logs/service-history`);allServiceHistory.value=await res.json();}catch(e){}};
+            const fetchStats=async()=>{try{const res=await fetch(`${API}/stats`);stats.value=await res.json();}catch(e){}};
+            const fetchDismissed=async()=>{try{const res=await fetch(`${PAPI}/alert/dismissed`);const d=await res.json();dismissed.value=d.dismissed||{};}catch(e){}};
+            const fetchStreamLevel=async()=>{try{const res=await fetch(`${PAPI}/config/logstream-level`);const d=await res.json();allLevelStream.value=d.level!=='WARN_ERROR';}catch(e){allLevelStream.value=true;}};
+
+            const connectWs=()=>{
+                ws=new WebSocket(WS);
+                ws.onopen=()=>{wsConnected.value=true;};
+                ws.onclose=()=>{wsConnected.value=false;setTimeout(connectWs,3000);};
+                ws.onmessage=event=>{try{const msg=JSON.parse(event.data);if(msg.type==='alert'){rawAlerts.value.unshift({rule_name:msg.ruleName,service:msg.service,message:msg.message,triggered_at:msg.time});if(rawAlerts.value.length>50)rawAlerts.value.pop();fetchStats();fetchServiceStatus();}else if(msg.type==='log'){const svc=msg.service;if(!logBuffer[svc])logBuffer[svc]=[];logBuffer[svc].unshift({time:msg.time,level:msg.level,message:msg.message});if(logBuffer[svc].length>MAX_LOG)logBuffer[svc].pop();}}catch(e){}};
+            };
+
+            onMounted(async()=>{
+                updateClock();timers.push(setInterval(updateClock,1000));
+                chartLine=echarts.init(document.getElementById('echart-line'));
+                chartLine.setOption({backgroundColor:'transparent',tooltip:{trigger:'axis',backgroundColor:'#071428',borderColor:'#0e2a4a',textStyle:{color:'#a8c4e0',fontSize:11}},legend:{textStyle:{color:'#4a7fa0',fontSize:11},top:0,inactiveColor:'#1a3a5a'},xAxis:{type:'category',data:[],axisLabel:{color:'#2a4a6a',fontSize:10},axisLine:{lineStyle:{color:'#0e2a4a'}},splitLine:{show:false}},yAxis:{type:'value',name:'%',max:100,axisLabel:{color:'#2a4a6a',fontSize:10},nameTextStyle:{color:'#2a4a6a',fontSize:10},splitLine:{lineStyle:{color:'#0e2a4a',type:'dashed'}}},series:[],grid:{left:40,right:16,top:36,bottom:28}});
+                chartPie=echarts.init(document.getElementById('echart-pie'));
+                chartPie.setOption({backgroundColor:'transparent',tooltip:{trigger:'item',backgroundColor:'#071428',borderColor:'#0e2a4a',textStyle:{color:'#a8c4e0',fontSize:11},formatter:'{b}: {c} ({d}%)'},legend:{orient:'vertical',right:10,top:'center',textStyle:{color:'#4a7fa0',fontSize:11}},series:[{name:'日志级别',type:'pie',radius:['40%','70%'],center:['40%','50%'],avoidLabelOverlap:false,label:{show:false},emphasis:{label:{show:true,color:'#e0f0ff',fontSize:12,fontWeight:'bold'}},data:[]}]});
+                chartBar=echarts.init(document.getElementById('echart-bar'));
+                chartBar.setOption({backgroundColor:'transparent',tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#071428',borderColor:'#0e2a4a',textStyle:{color:'#a8c4e0',fontSize:11}},legend:{textStyle:{color:'#4a7fa0',fontSize:11},top:0},xAxis:{type:'category',data:[],axisLabel:{color:'#2a4a6a',fontSize:10},axisLine:{lineStyle:{color:'#0e2a4a'}}},yAxis:{type:'value',axisLabel:{color:'#2a4a6a',fontSize:10},splitLine:{lineStyle:{color:'#0e2a4a',type:'dashed'}}},series:[{name:'ERROR',type:'bar',stack:'total',itemStyle:{color:'#ff4d4f'},data:[]},{name:'WARN',type:'bar',stack:'total',itemStyle:{color:'#ffc107'},data:[]},{name:'INFO',type:'bar',stack:'total',itemStyle:{color:'#00d4a1'},data:[]}],grid:{left:36,right:16,top:32,bottom:28}});
+
+                // fetchDismissed 必须先完成，否则告警列表会被旧的 dismissed key 过滤
+                await fetchDismissed();
+                await Promise.all([fetchAlerts(),fetchServiceStatus(),fetchAllServiceHistory(),fetchStats(),fetchErrorRate(),fetchLevelStats(),fetchLogVolume(),fetchStreamLevel()]);
+                connectWs();
+                timers.push(setInterval(fetchErrorRate,10000));timers.push(setInterval(fetchLevelStats,10000));timers.push(setInterval(fetchLogVolume,10000));timers.push(setInterval(fetchServiceStatus,10000));timers.push(setInterval(fetchAllServiceHistory,30000));timers.push(setInterval(fetchStats,15000));timers.push(setInterval(fetchAlerts,20000));
+            });
+            onUnmounted(()=>{timers.forEach(clearInterval);if(ws)ws.close();});
+
+            return {wsConnected,clock,stats,allServiceStatus,visibleAlertGroups,logServices,logBuffer,logLoading,logFilter,expanded,dismissed,allLevelStream,codeSnippets,showEmail,showTutorial,showCleanup,tutTab,emailForm,emailTesting,testResult,cleanupOptions,cleanupRange,cleanupLoading,cleanupResult,toggleGroup,toggleLogGroup,dismiss,filteredLogs,openEmailModal,toggleEmail,saveEmail,testEmail,openCleanup,doCleanup,toggleStreamLevel,copySnippet,fmtTime,clearAllDismissed};
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

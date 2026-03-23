@@ -1,0 +1,10 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: log-dashboard
+  data:
+    redis:
+      host: localhost
+      port: 6379
